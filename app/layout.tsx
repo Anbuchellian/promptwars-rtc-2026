@@ -1,28 +1,27 @@
 import type { Metadata } from "next";
-import { Libre_Baskerville, Source_Sans_3, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const libreBaskerville = Libre_Baskerville({
-  variable: "--font-heading",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
-  weight: ["400", "700"],
+  weight: ["500", "600", "700"],
   display: "swap",
-  style: "normal",
-  fallback: ["Georgia", "Times New Roman", "Times", "serif"],
+  fallback: ["system-ui", "-apple-system", "sans-serif"],
 });
 
-const sourceSans3 = Source_Sans_3({
-  variable: "--font-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
   fallback: ["system-ui", "-apple-system", "sans-serif"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-mono",
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-  weight: ["500", "700"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
   fallback: ["ui-monospace", "monospace"],
 });
@@ -40,7 +39,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${libreBaskerville.variable} ${sourceSans3.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${spaceGrotesk.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#FAF8F8] text-slate-800 font-sans selection:bg-teal-500 selection:text-white">
         {children}
