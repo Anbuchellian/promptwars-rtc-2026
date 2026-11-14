@@ -7,6 +7,8 @@ import {
   BookOpen,
   Bot,
   Brain,
+  CheckCircle2,
+  Loader2,
   ShieldCheck,
 } from "lucide-react";
 import type { AnalysisData } from "@/lib/types";
@@ -22,138 +24,134 @@ export default function OrchestrationBar({
   isLoading,
   adaptationAlert,
 }: OrchestrationBarProps) {
+  const agents = [
+    {
+      key: "Skill Auditor Agent" as const,
+      title: "Skill Auditor",
+      metric: `Readiness ${analysisData?.readinessScore ?? "--"}%`,
+      fallbackThought:
+        "Audits input skills against industry benchmarks and assigns an empirical Readiness Score.",
+      icon: ShieldCheck,
+      accentClass: "text-[#0F766E]",
+    },
+    {
+      key: "Curriculum Architect Agent" as const,
+      title: "Curriculum Architect",
+      metric: `${analysisData?.roadmap?.length ?? 3} Phases`,
+      fallbackThought:
+        "Builds structured, week-by-week personalized learning sequences with applied projects.",
+      icon: BookOpen,
+      accentClass: "text-[#0F766E]",
+    },
+    {
+      key: "Assessment Examiner Agent" as const,
+      title: "Assessment Examiner",
+      metric: `${analysisData?.diagnosticQuiz?.length ?? 3} Questions`,
+      fallbackThought:
+        "Generates targeted diagnostic questions aligned to identified skill gaps.",
+      icon: Award,
+      accentClass: "text-[#0F766E]",
+    },
+    {
+      key: "Adaptive Mentor Agent" as const,
+      title: "Adaptive Mentor",
+      metric: adaptationAlert ? "Intervention Active" : "Monitoring",
+      fallbackThought:
+        "Monitors quiz performance and career switches to inject remedial modules when needed.",
+      icon: Bot,
+      accentClass: "text-[#6D1A36]",
+    },
+  ];
+
   return (
     <section
       aria-labelledby="orchestration-heading"
-      className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 hover:border-slate-300 transition-colors"
+      className="bg-white rounded-xl border border-slate-200 p-5"
     >
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
         <div className="flex items-center gap-2">
-          <Brain className="w-4 h-4 text-[#6D1A36]" aria-hidden="true" />
+          <Brain className="w-4 h-4 text-[#6D1A36] shrink-0" aria-hidden="true" />
           <h2
             id="orchestration-heading"
-            className="text-xs font-heading font-bold text-[#6D1A36] tracking-tight uppercase"
+            className="text-sm font-heading font-bold text-[#6D1A36] tracking-tight"
           >
-            Multi-Agent Live Orchestration Layer
+            Multi-Agent Orchestration Layer
           </h2>
         </div>
-        <span
+
+        <div
           role="status"
           aria-live="polite"
-          className="text-[10px] font-mono uppercase tracking-wider text-[#0F766E] bg-[#0D9488]/[0.08] border border-[#0D9488]/20 px-2.5 py-0.5 rounded-full font-bold"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700"
         >
-          {isLoading ? "EXECUTING PIPELINE..." : "4 AGENTS ACTIVE"}
-        </span>
+          {isLoading ? (
+            <>
+              <Loader2
+                className="w-3.5 h-3.5 animate-spin text-[#0F766E]"
+                aria-hidden="true"
+              />
+              <span>Running 4-Agent Pipeline...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2
+                className="w-3.5 h-3.5 text-[#0F766E]"
+                aria-hidden="true"
+              />
+              <span>4 Agents Synchronized</span>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="border-l-2 border-[#0D9488] bg-[#0D9488]/[0.03] rounded-xl p-3.5 flex items-start gap-3 hover:bg-[#0D9488]/[0.06] transition-colors">
-          <ShieldCheck
-            className="w-4 h-4 text-[#0D9488] shrink-0 mt-0.5"
-            aria-hidden="true"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider font-bold text-slate-800">
-                Skill Auditor
-              </span>
-              <span className="text-[10px] font-mono text-[#0F766E] font-bold">
-                READINESS: {analysisData?.readinessScore ?? "--"}%
-              </span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-600 leading-relaxed line-clamp-2">
-              {analysisData?.agentLogs?.find(
-                (l) => l.agentName === "Skill Auditor Agent"
-              )?.thought ||
-                "Audits input skills against industry job descriptions; assigns empirical Readiness Score."}
-            </p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {agents.map((agent) => {
+          const IconComponent = agent.icon;
+          const thought =
+            analysisData?.agentLogs?.find((l) => l.agentName === agent.key)
+              ?.thought || agent.fallbackThought;
 
-        <div className="border-l-2 border-[#0D9488] bg-[#0D9488]/[0.03] rounded-xl p-3.5 flex items-start gap-3 hover:bg-[#0D9488]/[0.06] transition-colors">
-          <BookOpen
-            className="w-4 h-4 text-[#0D9488] shrink-0 mt-0.5"
-            aria-hidden="true"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider font-bold text-slate-800">
-                Curriculum Architect
-              </span>
-              <span className="text-[10px] font-mono text-[#0F766E] font-bold">
-                CURRICULUM READY
-              </span>
+          return (
+            <div
+              key={agent.key}
+              className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 flex items-start gap-3"
+            >
+              <IconComponent
+                className={`w-4 h-4 shrink-0 mt-0.5 ${agent.accentClass}`}
+                aria-hidden="true"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <h3 className="text-xs font-heading font-bold text-slate-900">
+                    {agent.title}
+                  </h3>
+                  <span className="text-xs font-mono font-semibold text-slate-600 tabular-nums whitespace-nowrap">
+                    {agent.metric}
+                  </span>
+                </div>
+                <p className="text-xs font-sans text-slate-700 leading-relaxed">
+                  {thought}
+                </p>
+              </div>
             </div>
-            <p className="text-[11px] font-sans text-slate-600 leading-relaxed line-clamp-2">
-              {analysisData?.agentLogs?.find(
-                (l) => l.agentName === "Curriculum Architect Agent"
-              )?.thought ||
-                "Builds structured, week-by-week personalized learning sequences with real projects."}
-            </p>
-          </div>
-        </div>
-
-        <div className="border-l-2 border-[#0D9488] bg-[#0D9488]/[0.03] rounded-xl p-3.5 flex items-start gap-3 hover:bg-[#0D9488]/[0.06] transition-colors">
-          <Award
-            className="w-4 h-4 text-[#0D9488] shrink-0 mt-0.5"
-            aria-hidden="true"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider font-bold text-slate-800">
-                Assessment Examiner
-              </span>
-              <span className="text-[10px] font-mono text-[#0F766E] font-bold">
-                DIAGNOSTIC ACTIVE
-              </span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-600 leading-relaxed line-clamp-2">
-              {analysisData?.agentLogs?.find(
-                (l) => l.agentName === "Assessment Examiner Agent"
-              )?.thought ||
-                "Generates 3-question diagnostic quiz targeting exact identified missing skills."}
-            </p>
-          </div>
-        </div>
-
-        <div className="border-l-2 border-[#6D1A36] bg-[#6D1A36]/[0.03] rounded-xl p-3.5 flex items-start gap-3 hover:bg-[#6D1A36]/[0.06] transition-colors relative overflow-hidden">
-          <div className="absolute top-0 right-0 px-1.5 py-0.5 bg-[#6D1A36] text-white text-[8px] font-mono uppercase tracking-wider font-bold rounded-bl">
-            ADAPTIVE HOOK
-          </div>
-          <Bot
-            className="w-4 h-4 text-[#6D1A36] shrink-0 mt-0.5"
-            aria-hidden="true"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider font-bold text-[#6D1A36]">
-                Adaptive Mentor
-              </span>
-            </div>
-            <p className="text-[11px] font-sans text-slate-600 leading-relaxed line-clamp-2">
-              {analysisData?.agentLogs?.find(
-                (l) => l.agentName === "Adaptive Mentor Agent"
-              )?.thought ||
-                "Monitors quiz performance & career switches; triggers visible remediation alerts."}
-            </p>
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       {adaptationAlert && (
         <div
           role="alert"
-          className="mt-3 p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-950 text-xs flex items-start gap-2.5 shadow-sm"
+          className="mt-4 p-4 rounded-lg bg-rose-50 border border-rose-300 text-rose-950 text-xs flex items-start gap-3"
         >
           <AlertTriangle
             className="w-4 h-4 text-[#6D1A36] shrink-0 mt-0.5"
             aria-hidden="true"
           />
           <div className="flex-1">
-            <span className="font-heading font-bold text-[#6D1A36] tracking-tight block mb-0.5">
-              DYNAMIC AGENT COLLABORATION ALERT
-            </span>
-            <p className="text-[11px] font-sans leading-relaxed text-slate-700">
+            <strong className="font-heading text-[#6D1A36] block mb-0.5">
+              Adaptive Intervention Active
+            </strong>
+            <p className="text-xs font-sans leading-relaxed text-slate-800">
               {adaptationAlert}
             </p>
           </div>

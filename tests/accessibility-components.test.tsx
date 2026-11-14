@@ -5,8 +5,12 @@ import userEvent from "@testing-library/user-event";
 import RoleplaySimulatorModal from "@/app/components/RoleplaySimulatorModal";
 import QuizTab from "@/app/components/QuizTab";
 import GoalsTab from "@/app/components/GoalsTab";
+import RoadmapTab from "@/app/components/RoadmapTab";
+import ReadinessTab from "@/app/components/ReadinessTab";
+import ProfileSidebar from "@/app/components/ProfileSidebar";
 import ThiranVazhiApp from "@/app/page";
 import { generateFallbackAnalysis } from "@/lib/agent-fallbacks";
+import { STUDENT_PRESETS } from "@/lib/skills-data";
 
 describe("RoleplaySimulatorModal accessibility & behavior", () => {
   beforeEach(() => {
@@ -62,14 +66,15 @@ describe("RoleplaySimulatorModal accessibility & behavior", () => {
   });
 });
 
-describe("QuizTab accessibility & adaptive hook", () => {
-  it("uses fieldset/legend for questions and triggers remedial adaptation when score < 60%", async () => {
+describe("QuizTab accessibility, retake & adaptive hook", () => {
+  it("uses fieldset/legend, radio options, supports retake, and triggers remedial adaptation when score < 60%", async () => {
     const analysis = generateFallbackAnalysis({
-      name: "Alex",
+      name: "Karthik Sundaram",
       targetRole: "Full Stack Developer",
     });
     const onSelectAnswer = vi.fn();
     const onSubmitQuiz = vi.fn();
+    const onRetakeQuiz = vi.fn();
     const onAutoAdapt = vi.fn();
 
     const { rerender } = render(
@@ -81,12 +86,14 @@ describe("QuizTab accessibility & adaptive hook", () => {
         quizScore={null}
         onSelectAnswer={onSelectAnswer}
         onSubmitQuiz={onSubmitQuiz}
+        onRetakeQuiz={onRetakeQuiz}
         onAutoAdaptRoadmap={onAutoAdapt}
       />
     );
 
     const fieldsets = document.querySelectorAll("fieldset");
     expect(fieldsets).toHaveLength(3);
+    expect(screen.getAllByRole("radio").length).toBeGreaterThan(0);
 
     const submitBtn = screen.getByRole("button", {
       name: /Submit Diagnostic Quiz/i,
@@ -104,9 +111,13 @@ describe("QuizTab accessibility & adaptive hook", () => {
         quizScore={{ correct: 0, total: 3 }}
         onSelectAnswer={onSelectAnswer}
         onSubmitQuiz={onSubmitQuiz}
+        onRetakeQuiz={onRetakeQuiz}
         onAutoAdaptRoadmap={onAutoAdapt}
       />
     );
+
+    await userEvent.click(screen.getByRole("button", { name: /Retake Quiz/i }));
+    expect(onRetakeQuiz).toHaveBeenCalledTimes(1);
 
     const adaptBtn = screen.getByRole("button", {
       name: /Auto-Adapt Roadmap with Mentor Agent/i,
@@ -116,8 +127,8 @@ describe("QuizTab accessibility & adaptive hook", () => {
   });
 });
 
-describe("GoalsTab accessibility & CRUD", () => {
-  it("connects labels to inputs and supports adding, toggling, and deleting milestones", async () => {
+describe("GoalsTab accessibility, filtering & CRUD", () => {
+  it("connects labels to inputs, filters goals, and supports adding and deleting milestones", async () => {
     const onAdd = vi.fn();
     const onToggle = vi.fn();
     const onDelete = vi.fn();
@@ -135,6 +146,15 @@ describe("GoalsTab accessibility & CRUD", () => {
             completed: false,
             createdAt: "2026-01-01T00:00:00.000Z",
           },
+          {
+            id: "g2",
+            title: "Publish Long-Term Portfolio Review",
+            type: "long",
+            deadline: "",
+            area: "Corporate Finance",
+            completed: true,
+            createdAt: "2026-01-02T00:00:00.000Z",
+          },
         ]}
         missingSkills={[]}
         onAddGoal={onAdd}
@@ -151,6 +171,15 @@ describe("GoalsTab accessibility & CRUD", () => {
       expect.objectContaining({ title: "Pass Financial Modeling Exam" })
     );
 
+    const searchInput = screen.getByLabelText(/Search milestones/i);
+    await userEvent.type(searchInput, "Portfolio");
+    expect(screen.queryByText("Complete DCF Case Study")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Publish Long-Term Portfolio Review")
+    ).toBeInTheDocument();
+
+    await userEvent.clear(searchInput);
+
     const deleteBtn = screen.getByRole("button", {
       name: /Delete milestone: Complete DCF Case Study/i,
     });
@@ -159,11 +188,131 @@ describe("GoalsTab accessibility & CRUD", () => {
   });
 });
 
-describe("ThiranVazhiApp skip link, WAI-ARIA tabs, roleplay tab, and upload security", () => {
+describe("RoadmapTab & ReadinessTab new UI features", () => {
+  it("filters roadmap modules by search query and resource format", async () => {
+    const analysis = generateFallbackAnalysis({
+      name: "Mateo Alvarez",
+      targetRole: "Robotics Engineer",
+      currentSkills: ["SolidWorks", "C / C++"],
+    });
+
+    render(
+      <RoadmapTab
+        targetRole="Robotics Engineer"
+        analysisData={analysis}
+        completedItems={{}}
+        progressPercent={0}
+        onToggleItemCompletion={vi.fn()}
+        onLaunchSimulator={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText(/ROS 2 Control & Forward\/Inverse Kinematics Workshop/i)
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Hands-on Project" })
+    );
+    expect(
+      screen.queryByText(/ROS 2 Control & Forward\/Inverse Kinematics Workshop/i)
+    ).not.toBeInTheDocument();
+
+    const searchInput = screen.getByLabelText(/Search roadmap modules/i);
+    await userEvent.type(searchInput, "nonexistent-module-xyz");
+    expect(
+      screen.getByText(/No roadmap modules match your current filter/i)
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Reset Filters/i }));
+    expect(
+      screen.queryByText(/No roadmap modules match your current filter/i)
+    ).not.toBeInTheDocument();
+  });
+
+  it("triggers one-click Add Goal from ReadinessTab missing skills", async () => {
+    const analysis = generateFallbackAnalysis({
+      name: "Karthik Sundaram",
+      targetRole: "Full Stack Developer",
+      currentSkills: ["Python Programming"],
+    });
+    const onAddGoalFromSkill = vi.fn();
+
+    render(
+      <ReadinessTab
+        name="Karthik Sundaram"
+        targetRole="Full Stack Developer"
+        analysisData={analysis}
+        domainComparisonList={analysis.domainComparison || []}
+        completedCount={1}
+        totalResources={6}
+        onAddGoalFromSkill={onAddGoalFromSkill}
+      />
+    );
+
+    const addGoalButtons = screen.getAllByRole("button", { name: /Add Goal/i });
+    expect(addGoalButtons.length).toBeGreaterThan(0);
+    await userEvent.click(addGoalButtons[0]);
+    expect(onAddGoalFromSkill).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ProfileSidebar 4 candidate records & language selector", () => {
+  it("renders all 4 candidate records and notifies on preset selection and language change", async () => {
+    const onLoadPreset = vi.fn();
+    const onPreferredLanguageChange = vi.fn();
+
+    render(
+      <ProfileSidebar
+        name={STUDENT_PRESETS[0].name}
+        onNameChange={vi.fn()}
+        targetRole={STUDENT_PRESETS[0].targetRole}
+        onTargetRoleChange={vi.fn()}
+        preferredLanguage="English"
+        onPreferredLanguageChange={onPreferredLanguageChange}
+        skillsList={STUDENT_PRESETS[0].skills}
+        onToggleSkill={vi.fn()}
+        onAddSkill={vi.fn()}
+        onRemoveSkill={vi.fn()}
+        projects={STUDENT_PRESETS[0].projects}
+        onProjectsChange={vi.fn()}
+        certifications={STUDENT_PRESETS[0].certifications}
+        onCertificationsChange={vi.fn()}
+        resumeText=""
+        onResumeTextChange={vi.fn()}
+        isParsingResume={false}
+        parseSuccessMsg={null}
+        onExtractSkillsFromResume={vi.fn()}
+        activePresetId={1}
+        onLoadPreset={onLoadPreset}
+        onResetProfile={vi.fn()}
+        onRunPipeline={vi.fn()}
+        isLoading={false}
+        progressPercent={0}
+        completedCount={0}
+        totalResources={6}
+      />
+    );
+
+    for (const preset of STUDENT_PRESETS) {
+      expect(screen.getByText(preset.label)).toBeInTheDocument();
+    }
+
+    await userEvent.click(screen.getByText("Mateo Alvarez"));
+    expect(onLoadPreset).toHaveBeenCalledWith(4);
+
+    const langSelect = screen.getByLabelText(/Guidance Language/i);
+    await userEvent.selectOptions(langSelect, "Tamil");
+    expect(onPreferredLanguageChange).toHaveBeenCalledWith("Tamil");
+  });
+});
+
+describe("ThiranVazhiApp skip link, starter goals, WAI-ARIA tabs, roleplay tab, and upload security", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
     const fallbackAnalysis = generateFallbackAnalysis({
-      name: "Alex Rivera",
+      name: "Karthik Sundaram",
       targetRole: "Full Stack Developer",
     });
 
@@ -193,7 +342,7 @@ describe("ThiranVazhiApp skip link, WAI-ARIA tabs, roleplay tab, and upload secu
     }) as unknown as typeof fetch;
   });
 
-  it("renders skip link, supports arrow-key tab navigation, and opens the Roleplay tab", async () => {
+  it("renders skip link, seeds 4 starter goals, supports arrow-key tab navigation, and opens Roleplay tab", async () => {
     render(<ThiranVazhiApp />);
 
     expect(
@@ -207,7 +356,12 @@ describe("ThiranVazhiApp skip link, WAI-ARIA tabs, roleplay tab, and upload secu
     const roadmapTab = screen.getByRole("tab", { name: /Roadmap/i });
     expect(roadmapTab).toHaveAttribute("aria-selected", "true");
 
-    // Navigate to Roleplay tab
+    const goalsTab = screen.getByRole("tab", { name: /Goals/i });
+    await userEvent.click(goalsTab);
+    expect(
+      screen.getByText(/Build idempotent webhook worker queue/i)
+    ).toBeInTheDocument();
+
     const roleplayTab = screen.getByRole("tab", { name: /Roleplay/i });
     await userEvent.click(roleplayTab);
 

@@ -27,6 +27,15 @@ describe("POST /api/agents", () => {
     expect(json.error).toMatch(/malformed json/i);
   });
 
+  it("returns 413 when payload exceeds 64 KB", async () => {
+    const oversized = {
+      action: "parse_profile",
+      rawText: "A".repeat(70_000),
+    };
+    const res = await POST(buildRequest(oversized, "198.51.100.10"));
+    expect(res.status).toBe(413);
+  });
+
   it("returns 400 for invalid action", async () => {
     const res = await POST(buildRequest({ action: "unauthorized_action" }));
     expect(res.status).toBe(400);
@@ -39,13 +48,14 @@ describe("POST /api/agents", () => {
     expect(res.status).toBe(400);
   });
 
-  it("processes analyze_and_plan and returns valid structured payload", async () => {
+  it("processes analyze_and_plan for Robotics Engineer and returns valid structured payload", async () => {
     const res = await POST(
       buildRequest({
         action: "analyze_and_plan",
-        name: "Alex Rivera",
-        currentSkills: ["Python", "SQL"],
-        targetRole: "Full Stack Developer",
+        name: "Mateo Alvarez",
+        currentSkills: ["SolidWorks", "C / C++", "Embedded C"],
+        targetRole: "Robotics Engineer",
+        preferredLanguage: "English",
       })
     );
     expect(res.status).toBe(200);
@@ -62,6 +72,7 @@ describe("POST /api/agents", () => {
         action: "roleplay_simulation",
         targetRole: "Financial Analyst",
         turnNumber: 1,
+        preferredLanguage: "Tamil",
       })
     );
     expect(roleRes.status).toBe(200);
@@ -73,6 +84,7 @@ describe("POST /api/agents", () => {
         action: "mentor_chat",
         userMessage: "I am struggling with DCF modeling",
         readinessScore: 45,
+        preferredLanguage: "Hindi",
       })
     );
     expect(chatRes.status).toBe(200);

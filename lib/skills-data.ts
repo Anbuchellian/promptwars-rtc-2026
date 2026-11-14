@@ -252,10 +252,11 @@ export const CAREER_DOMAINS: CareerDomain[] = [
 ];
 
 export interface StudentPreset {
-  id: 1 | 2 | 3;
+  id: 1 | 2 | 3 | 4;
+  code: string;
   label: string;
-  subtitle: string;
-  badge: string;
+  targetSummary: string;
+  metaSummary: string;
   name: string;
   targetRole: string;
   skills: string[];
@@ -263,38 +264,120 @@ export interface StudentPreset {
   certifications: string;
 }
 
+export const SUPPORTED_LANGUAGES = [
+  { value: "English", label: "English" },
+  { value: "Tamil", label: "Tamil (தமிழ்)" },
+  { value: "Hindi", label: "Hindi (हिन्दी)" },
+  { value: "Telugu", label: "Telugu (తెలుగు)" },
+  { value: "Malayalam", label: "Malayalam (മലയാളം)" },
+] as const;
+
 export const STUDENT_PRESETS: StudentPreset[] = [
   {
     id: 1,
-    label: "CS Student",
-    subtitle: "-> Full Stack Developer",
-    badge: "Python/SQL",
-    name: "Alex Rivera",
+    code: "ENG",
+    label: "Karthik Sundaram",
+    targetSummary: "Full Stack Developer",
+    metaSummary: "Python · PostgreSQL · React",
+    name: "Karthik Sundaram",
     targetRole: "Full Stack Developer",
-    skills: ["Python", "SQL", "HTML"],
-    projects: "E-commerce relational database schema, Python CLI web scraper",
-    certifications: "Python Data Fundamentals",
+    skills: ["Python Programming", "SQL & Relational Databases", "HTML5 & CSS3", "API Development"],
+    projects:
+      "Multi-tenant inventory ledger with PostgreSQL indexing and asynchronous webhook ingestion pipeline",
+    certifications: "B.Tech Computer Science · AWS Certified Cloud Practitioner",
   },
   {
     id: 2,
-    label: "Chemistry",
-    subtitle: "-> Pharma Scientist",
-    badge: "HPLC/Titration",
-    name: "Dr. Elena Vance",
+    code: "RX",
+    label: "Dr. Ananya Deshmukh",
+    targetSummary: "Pharmaceutical Formulation Scientist",
+    metaSummary: "HPLC · Titration · GLP",
+    name: "Dr. Ananya Deshmukh",
     targetRole: "Pharmaceutical Formulation Scientist",
-    skills: ["Organic Chemistry", "Titration", "HPLC Basics"],
-    projects: "Synthesis of ester compounds, Spectrophotometry & titration assays",
-    certifications: "GLP Laboratory Safety & Good Manufacturing Practices",
+    skills: [
+      "Analytical Chemistry",
+      "Titration Assays",
+      "HPLC (High-Performance Liquid Chromatography)",
+      "Good Laboratory Practice (GLP)",
+    ],
+    projects:
+      "Extended-release bilayer tablet excipient compatibility study and spectrophotometric assay validation",
+    certifications: "Ph.D. Pharmaceutics · ICH Q1A Stability & GLP Laboratory Certification",
   },
   {
     id: 3,
-    label: "Commerce",
-    subtitle: "-> Financial Analyst",
-    badge: "Excel/Accounting",
-    name: "Marcus Sterling",
+    code: "FIN",
+    label: "Nadia Al-Mansoor",
+    targetSummary: "Financial Analyst",
+    metaSummary: "Excel · Accounting · Valuation",
+    name: "Nadia Al-Mansoor",
     targetRole: "Financial Analyst",
-    skills: ["Excel", "Accounting", "Business Communication"],
-    projects: "3-statement financial modeling, DCF company valuation, variance analysis",
-    certifications: "Financial Modeling & Valuation Analyst (FMVA)",
+    skills: [
+      "Excel (Advanced & Modeling)",
+      "Financial Accounting",
+      "Corporate Finance",
+      "Business Communication",
+    ],
+    projects:
+      "3-statement SaaS unit economics workbook, WACC sensitivity table, and quarterly variance bridge",
+    certifications: "B.Sc. Quantitative Finance · Financial Modeling & Valuation Analyst (FMVA)",
+  },
+  {
+    id: 4,
+    code: "ROB",
+    label: "Mateo Alvarez",
+    targetSummary: "Robotics Engineer",
+    metaSummary: "SolidWorks · Embedded C · MATLAB",
+    name: "Mateo Alvarez",
+    targetRole: "Robotics Engineer",
+    skills: [
+      "SolidWorks",
+      "C / C++",
+      "Embedded C",
+      "MATLAB",
+      "Robotics Kinematics",
+    ],
+    projects:
+      "6-DOF articulated arm inverse kinematics solver and real-time STM32 closed-loop motor controller",
+    certifications: "M.Sc. Mechatronics & Robotics · ISO 10218 Industrial Safety Training",
+  },
+];
+
+export const DEFAULT_STARTER_GOALS = [
+  {
+    id: "starter-goal-1",
+    title: "Build idempotent webhook worker queue with PostgreSQL advisory locks",
+    type: "short" as const,
+    deadline: "2026-12-01",
+    area: "Backend Architecture",
+    completed: false,
+    createdAt: "2026-11-10T09:00:00.000Z",
+  },
+  {
+    id: "starter-goal-2",
+    title: "Complete React Server Components accessibility & keyboard audit",
+    type: "short" as const,
+    deadline: "2026-12-10",
+    area: "Frontend Engineering",
+    completed: true,
+    createdAt: "2026-11-05T14:30:00.000Z",
+  },
+  {
+    id: "starter-goal-3",
+    title: "Deploy containerized microservice stack with automated CI rollback gates",
+    type: "long" as const,
+    deadline: "2027-01-20",
+    area: "Cloud & DevOps",
+    completed: false,
+    createdAt: "2026-11-08T11:15:00.000Z",
+  },
+  {
+    id: "starter-goal-4",
+    title: "Publish end-to-end system design case study and architecture benchmarks",
+    type: "long" as const,
+    deadline: "2027-02-15",
+    area: "System Architecture",
+    completed: false,
+    createdAt: "2026-11-09T16:45:00.000Z",
   },
 ];

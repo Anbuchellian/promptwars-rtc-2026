@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Award, Check, CheckCircle, RefreshCw } from "lucide-react";
+import { Award, Check, CheckCircle, RefreshCw, RotateCcw } from "lucide-react";
 import type { AnalysisData } from "@/lib/types";
 
 interface QuizTabProps {
@@ -12,6 +12,7 @@ interface QuizTabProps {
   quizScore: { correct: number; total: number } | null;
   onSelectAnswer: (questionId: number, optionIndex: number) => void;
   onSubmitQuiz: () => void;
+  onRetakeQuiz: () => void;
   onAutoAdaptRoadmap: () => void;
 }
 
@@ -23,30 +24,37 @@ export default function QuizTab({
   quizScore,
   onSelectAnswer,
   onSubmitQuiz,
+  onRetakeQuiz,
   onAutoAdaptRoadmap,
 }: QuizTabProps) {
   const quizLength = analysisData?.diagnosticQuiz.length || 3;
+  const answeredCount = Object.keys(quizAnswers).length;
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-300">
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 hover:border-slate-300 transition-colors">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
           <div>
-            <h3 className="text-sm font-heading font-bold tracking-tight text-[#6D1A36] flex items-center gap-2">
-              <Award className="w-4 h-4 text-teal-700" aria-hidden="true" />
-              Instant Diagnostic Assessment (Examiner Agent 3)
-            </h3>
-            <p className="text-xs font-sans text-slate-600 mt-0.5">
+            <h2 className="text-base font-heading font-bold tracking-tight text-[#6D1A36] flex items-center gap-2">
+              <Award className="w-4 h-4 text-[#0F766E]" aria-hidden="true" />
+              <span>Instant Diagnostic Assessment (Examiner Agent 3)</span>
+            </h2>
+            <p className="text-xs font-sans text-slate-600 mt-1">
               Targeting missing skills for {targetRole}:{" "}
               {analysisData?.missingSkills.map((m) => m.skill).join(", ")}.
             </p>
           </div>
-          <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-stone-100 border border-stone-200 text-slate-700">
-            THRESHOLD: 60%
-          </span>
+          <div className="flex items-center gap-3 text-xs font-mono font-semibold text-slate-700 tabular-nums">
+            <span>
+              Answered {answeredCount}/{quizLength}
+            </span>
+            <span className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200">
+              THRESHOLD: 60%
+            </span>
+          </div>
         </div>
 
-        <div className="space-y-4 mt-4">
+        <div className="space-y-4">
           {analysisData?.diagnosticQuiz.map((q, idx) => {
             const selectedOpt = quizAnswers[q.id];
             const isCorrect = selectedOpt === q.correctIndex;
@@ -54,61 +62,64 @@ export default function QuizTab({
             return (
               <fieldset
                 key={q.id}
-                className="bg-stone-50 border border-stone-200 rounded-xl p-4"
+                className="bg-slate-50 border border-slate-200 rounded-xl p-4"
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-teal-800">
-                    QUESTION {idx + 1} &bull; {q.skill}
+                  <span className="text-xs font-mono font-bold text-[#0F766E]">
+                    Question {idx + 1} &middot; {q.skill}
                   </span>
                   {quizSubmitted && (
                     <span
-                      className={`text-[9px] font-mono uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${
-                        isCorrect
-                          ? "bg-teal-50 text-teal-900 border border-teal-200"
-                          : "bg-rose-50 text-rose-900 border border-rose-200"
+                      className={`text-xs font-mono font-bold ${
+                        isCorrect ? "text-[#0F766E]" : "text-rose-800"
                       }`}
                     >
-                      {isCorrect ? "CORRECT" : "INCORRECT"}
+                      {isCorrect ? "Correct" : "Incorrect"}
                     </span>
                   )}
                 </div>
 
-                <legend className="text-xs font-heading font-bold tracking-tight text-slate-900 mb-3">
+                <legend className="text-sm font-heading font-bold tracking-tight text-slate-900 mb-3">
                   {q.question}
                 </legend>
 
-                <div className="space-y-2">
+                <div
+                  role="radiogroup"
+                  aria-label={`Options for question ${idx + 1}`}
+                  className="space-y-2"
+                >
                   {q.options.map((opt, optIdx) => {
                     const isSelected = selectedOpt === optIdx;
                     let btnStyle =
-                      "bg-white border-stone-200 text-slate-800 hover:border-teal-400 hover:bg-teal-50/30";
+                      "bg-white border-slate-200 text-slate-800 hover:border-[#0D9488] hover:bg-teal-50/30";
 
                     if (quizSubmitted) {
                       if (optIdx === q.correctIndex) {
                         btnStyle =
-                          "bg-teal-50 border-teal-600 text-teal-950 font-bold";
+                          "bg-teal-50 border-teal-600 text-teal-950 font-semibold";
                       } else if (isSelected && !isCorrect) {
                         btnStyle =
                           "bg-rose-50 border-rose-400 text-rose-950 font-medium";
                       }
                     } else if (isSelected) {
                       btnStyle =
-                        "bg-teal-50 border-teal-600 text-teal-950 font-bold shadow-xs";
+                        "bg-teal-50 border-teal-600 text-teal-950 font-semibold";
                     }
 
                     return (
                       <button
                         key={optIdx}
                         type="button"
-                        aria-pressed={isSelected}
+                        role="radio"
+                        aria-checked={isSelected}
                         disabled={quizSubmitted}
                         onClick={() => onSelectAnswer(q.id, optIdx)}
-                        className={`w-full text-left px-3.5 py-2.5 rounded-lg border text-xs font-sans transition cursor-pointer flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488] ${btnStyle}`}
+                        className={`w-full min-h-[42px] text-left px-3.5 py-2.5 rounded-lg border text-xs font-sans transition-colors cursor-pointer flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488] ${btnStyle}`}
                       >
                         <span>{opt}</span>
                         {quizSubmitted && optIdx === q.correctIndex && (
                           <Check
-                            className="w-3.5 h-3.5 text-teal-700 shrink-0 ml-2"
+                            className="w-4 h-4 text-[#0F766E] shrink-0 ml-2"
                             aria-hidden="true"
                           />
                         )}
@@ -118,8 +129,8 @@ export default function QuizTab({
                 </div>
 
                 {quizSubmitted && (
-                  <div className="mt-3 p-2.5 rounded-lg bg-white border border-stone-200 text-[11px] font-sans text-slate-700">
-                    <span className="font-heading font-bold text-[#6D1A36] tracking-tight block mb-0.5">
+                  <div className="mt-3 p-3 rounded-lg bg-white border border-slate-200 text-xs font-sans text-slate-700">
+                    <span className="font-heading font-bold text-[#6D1A36] block mb-0.5">
                       Diagnostic Explanation:
                     </span>
                     {q.explanation}
@@ -130,13 +141,13 @@ export default function QuizTab({
           })}
         </div>
 
-        <div className="mt-5 pt-4 border-t border-stone-100 flex flex-wrap items-center justify-between gap-4">
+        <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
           {!quizSubmitted ? (
             <button
               type="button"
               onClick={onSubmitQuiz}
-              disabled={Object.keys(quizAnswers).length < quizLength}
-              className="px-5 py-2 rounded-xl text-xs font-heading font-bold tracking-tight bg-[#6D1A36] hover:bg-[#521228] text-white shadow-md shadow-[#6D1A36]/20 disabled:opacity-40 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488]"
+              disabled={answeredCount < quizLength}
+              className="min-h-[42px] px-5 py-2.5 rounded-lg text-xs font-heading font-bold tracking-tight bg-[#6D1A36] hover:bg-[#521228] text-white disabled:opacity-40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488]"
             >
               Submit Diagnostic Quiz
             </button>
@@ -151,9 +162,9 @@ export default function QuizTab({
                   Diagnostic Result:{" "}
                 </span>
                 <strong
-                  className={`font-mono text-sm ${
+                  className={`font-mono text-sm tabular-nums ${
                     quizScore && quizScore.correct / quizScore.total >= 0.6
-                      ? "text-teal-800 font-bold"
+                      ? "text-[#0F766E] font-bold"
                       : "text-rose-800 font-bold"
                   }`}
                 >
@@ -165,27 +176,40 @@ export default function QuizTab({
                 </strong>
               </div>
 
-              {quizScore && quizScore.correct / quizScore.total < 0.6 ? (
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
-                  onClick={onAutoAdaptRoadmap}
-                  className="px-4 py-2.5 rounded-xl text-xs font-heading font-bold tracking-tight bg-gradient-to-r from-[#6D1A36] to-rose-700 hover:from-[#521228] hover:to-rose-800 text-white shadow-md shadow-rose-900/20 transition flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488]"
+                  onClick={onRetakeQuiz}
+                  className="min-h-[40px] px-3.5 py-2 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-heading font-bold text-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488]"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>
-                    Auto-Adapt Roadmap with Mentor Agent (Inject Remedial
-                    Modules)
-                  </span>
+                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Retake Quiz</span>
                 </button>
-              ) : (
-                <span className="text-xs text-teal-800 font-heading font-bold tracking-tight flex items-center gap-1">
-                  <CheckCircle
-                    className="w-4 h-4 text-teal-700"
-                    aria-hidden="true"
-                  />
-                  Passing Score Met! You are ready to proceed with Phase 1.
-                </span>
-              )}
+
+                {quizScore && quizScore.correct / quizScore.total < 0.6 ? (
+                  <button
+                    type="button"
+                    onClick={onAutoAdaptRoadmap}
+                    className="min-h-[40px] px-4 py-2 rounded-lg text-xs font-heading font-bold tracking-tight bg-[#6D1A36] hover:bg-[#521228] text-white transition-colors flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488]"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>
+                      Auto-Adapt Roadmap with Mentor Agent (Inject Remedial
+                      Modules)
+                    </span>
+                  </button>
+                ) : (
+                  <span className="text-xs text-[#0F766E] font-heading font-bold flex items-center gap-1.5">
+                    <CheckCircle
+                      className="w-4 h-4 text-[#0F766E]"
+                      aria-hidden="true"
+                    />
+                    <span>
+                      Passing Score Met. Ready to proceed with Phase 1.
+                    </span>
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>

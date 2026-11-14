@@ -105,3 +105,12 @@ export type TabId =
   | "resume";
 
 export type ResumeLayout = "executive" | "modern" | "academic";
+
+export type SupportedLanguage =
+  | "English"
+  | "Tamil"
+  | "Hindi"
+  | "Telugu"
+  | "Malayalam";
+
+export type StudentPresetId = 1 | 2 | 3 | 4;

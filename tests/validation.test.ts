@@ -6,6 +6,7 @@ import {
   parseStoredCompletedItems,
   parseStoredGoals,
   sanitizeAnalysisResponse,
+  sanitizeLanguage,
   sanitizeStringArray,
   sanitizeText,
   validateAgentPayload,
@@ -13,7 +14,7 @@ import {
 } from "@/lib/validation";
 import { generateFallbackAnalysis } from "@/lib/agent-fallbacks";
 
-describe("sanitizeText & sanitizeStringArray", () => {
+describe("sanitizeText, sanitizeLanguage & sanitizeStringArray", () => {
   it("strips ASCII control characters and enforces max length", () => {
     const dirty = "  Hello\x00\x07 World\x1F!  ";
     expect(sanitizeText(dirty, 5)).toBe("Hello");
@@ -24,6 +25,12 @@ describe("sanitizeText & sanitizeStringArray", () => {
     expect(sanitizeText(123, 10)).toBe("");
     expect(sanitizeText(null, 10)).toBe("");
     expect(sanitizeText(undefined, 10)).toBe("");
+  });
+
+  it("normalizes supported languages and defaults unknown values to English", () => {
+    expect(sanitizeLanguage("Tamil")).toBe("Tamil");
+    expect(sanitizeLanguage("Malayalam")).toBe("Malayalam");
+    expect(sanitizeLanguage("<script>alert(1)</script>")).toBe("English");
   });
 
   it("deduplicates and caps array items", () => {
@@ -60,11 +67,15 @@ describe("clampScore & clampInteger", () => {
 });
 
 describe("validateAgentPayload", () => {
-  it("rejects non-object bodies and unknown actions", () => {
+  it("rejects non-object bodies, unknown actions, and prototype pollution keys", () => {
     expect(validateAgentPayload(null).ok).toBe(false);
     expect(validateAgentPayload([]).ok).toBe(false);
-    const badAction = validateAgentPayload({ action: "drop_table" });
-    expect(badAction.ok).toBe(false);
+    expect(validateAgentPayload({ action: "drop_table" }).ok).toBe(false);
+
+    const protoPayload = JSON.parse(
+      '{"action":"mentor_chat","userMessage":"hi","__proto__":{"polluted":true}}'
+    );
+    expect(validateAgentPayload(protoPayload).ok).toBe(false);
   });
 
   it("rejects empty rawText for parse_profile", () => {
@@ -80,40 +91,53 @@ describe("validateAgentPayload", () => {
     expect(res.ok).toBe(false);
   });
 
-  it("sanitizes valid analyze_and_plan payloads", () => {
+  it("sanitizes valid analyze_and_plan payloads including preferredLanguage", () => {
     const res = validateAgentPayload({
       action: "analyze_and_plan",
       name: "  Ada\x00 Lovelace ",
       currentSkills: ["Python", "Python", "Math"],
       targetRole: "AI/ML Engineer",
+      preferredLanguage: "Telugu",
     });
     expect(res.ok).toBe(true);
     if (res.ok && res.data.action === "analyze_and_plan") {
       expect(res.data.name).toBe("Ada Lovelace");
       expect(res.data.currentSkills).toEqual(["Python", "Math"]);
       expect(res.data.targetRole).toBe("AI/ML Engineer");
+      expect(res.data.preferredLanguage).toBe("Telugu");
     }
   });
 });
 
 describe("image upload validation & data URL verification", () => {
-  it("rejects SVG files to prevent embedded script XSS", () => {
-    const res = validateImageFile({ type: "image/svg+xml", size: 1024 });
-    expect(res.ok).toBe(false);
+  it("rejects SVG files and mismatched file extensions to prevent embedded script XSS", () => {
+    expect(
+      validateImageFile({ type: "image/svg+xml", size: 1024, name: "bad.svg" }).ok
+    ).toBe(false);
+    expect(
+      validateImageFile({ type: "image/png", size: 1024, name: "bad.svg" }).ok
+    ).toBe(false);
   });
 
   it("rejects oversized images over 2 MB", () => {
     const res = validateImageFile({
       type: "image/png",
       size: 3 * 1024 * 1024,
+      name: "large.png",
     });
     expect(res.ok).toBe(false);
   });
 
   it("accepts valid PNG/JPEG/WebP files under 2 MB", () => {
-    expect(validateImageFile({ type: "image/png", size: 50_000 }).ok).toBe(true);
-    expect(validateImageFile({ type: "image/jpeg", size: 50_000 }).ok).toBe(true);
-    expect(validateImageFile({ type: "image/webp", size: 50_000 }).ok).toBe(true);
+    expect(
+      validateImageFile({ type: "image/png", size: 50_000, name: "ok.png" }).ok
+    ).toBe(true);
+    expect(
+      validateImageFile({ type: "image/jpeg", size: 50_000, name: "ok.jpg" }).ok
+    ).toBe(true);
+    expect(
+      validateImageFile({ type: "image/webp", size: 50_000, name: "ok.webp" }).ok
+    ).toBe(true);
   });
 
   it("verifies safe base64 image data URLs only", () => {
@@ -152,12 +176,19 @@ describe("localStorage parsers", () => {
 });
 
 describe("sanitizeAnalysisResponse", () => {
-  it("clamps out-of-range scores and invalid quiz correctIndex", () => {
+  it("clamps out-of-range scores, invalid agent names, and invalid quiz correctIndex", () => {
     const fallback = generateFallbackAnalysis({ targetRole: "Full Stack Developer" });
     const sanitized = sanitizeAnalysisResponse(
       {
         ...fallback,
         readinessScore: 999,
+        agentLogs: [
+          {
+            agentName: "Unauthorized Agent",
+            status: "completed",
+            thought: "Test\x00thought",
+          },
+        ],
         diagnosticQuiz: [
           {
             id: 1,
@@ -173,5 +204,7 @@ describe("sanitizeAnalysisResponse", () => {
     );
     expect(sanitized.readinessScore).toBe(100);
     expect(sanitized.diagnosticQuiz[0].correctIndex).toBe(0);
+    expect(sanitized.agentLogs[0].agentName).toBe("Skill Auditor Agent");
+    expect(sanitized.agentLogs[0].thought).toBe("Testthought");
   });
 });

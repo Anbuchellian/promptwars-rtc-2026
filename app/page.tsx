@@ -7,6 +7,7 @@ import {
   Bot,
   FileText,
   Layers,
+  RefreshCw,
   Sparkles,
   Target,
   TrendingUp,
@@ -21,7 +22,7 @@ import QuizTab from "./components/QuizTab";
 import MentorTab from "./components/MentorTab";
 import GoalsTab from "./components/GoalsTab";
 import ResumeTab from "./components/ResumeTab";
-import { STUDENT_PRESETS } from "@/lib/skills-data";
+import { DEFAULT_STARTER_GOALS, STUDENT_PRESETS } from "@/lib/skills-data";
 import {
   isSafeImageDataUrl,
   parseStoredCompletedItems,
@@ -35,6 +36,8 @@ import type {
   DomainComparison,
   ResumeLayout,
   RoleplayTurn,
+  StudentPresetId,
+  SupportedLanguage,
   TabId,
 } from "@/lib/types";
 
@@ -45,6 +48,13 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "quiz", label: "Assessment" },
   { id: "mentor", label: "AI Mentor" },
   { id: "goals", label: "Goals" },
+  { id: "resume", label: "Resume" },
+];
+
+const TOP_NAV_LINKS: { id: TabId; label: string }[] = [
+  { id: "readiness", label: "Skill Gap" },
+  { id: "roadmap", label: "Roadmap" },
+  { id: "quiz", label: "Assessment" },
   { id: "resume", label: "Resume" },
 ];
 
@@ -86,21 +96,22 @@ const FALLBACK_DOMAIN_COMPARISON: DomainComparison[] = [
   },
 ];
 
+const DEFAULT_PRESET = STUDENT_PRESETS[0];
+
 export default function ThiranVazhiApp() {
-  // Learner Profile State
-  const [name, setName] = useState("Alex Rivera");
-  const [skillsList, setSkillsList] = useState<string[]>([
-    "Python",
-    "SQL",
-    "HTML",
-  ]);
-  const [projects, setProjects] = useState(
-    "E-commerce relational database schema, Python CLI data scraper"
+  // Learner Profile State (initialized to Record 1: Karthik Sundaram)
+  const [activePresetId, setActivePresetId] = useState<StudentPresetId | null>(
+    DEFAULT_PRESET.id
   );
+  const [name, setName] = useState(DEFAULT_PRESET.name);
+  const [skillsList, setSkillsList] = useState<string[]>(DEFAULT_PRESET.skills);
+  const [projects, setProjects] = useState(DEFAULT_PRESET.projects);
   const [certifications, setCertifications] = useState(
-    "Python Data Analysis Certificate"
+    DEFAULT_PRESET.certifications
   );
-  const [targetRole, setTargetRole] = useState("Full Stack Developer");
+  const [targetRole, setTargetRole] = useState(DEFAULT_PRESET.targetRole);
+  const [preferredLanguage, setPreferredLanguage] =
+    useState<SupportedLanguage>("English");
 
   // Resume / Bio Auto-Import State
   const [resumeText, setResumeText] = useState("");
@@ -125,6 +136,9 @@ export default function ThiranVazhiApp() {
     resume: null,
   });
 
+  // Live Status Announcement for screen readers & subtle feedback
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string>("");
+
   // Inline Roleplay Simulator Agent State
   const [roleplayData, setRoleplayData] = useState<RoleplayTurn | null>(null);
   const [roleplayHistory, setRoleplayHistory] = useState<RoleplayTurn[]>([]);
@@ -132,15 +146,15 @@ export default function ThiranVazhiApp() {
   const [isRoleplayLoading, setIsRoleplayLoading] = useState(false);
   const [roleplayError, setRoleplayError] = useState<string | null>(null);
 
-  // Goals State
-  const [goals, setGoals] = useState<CareerGoal[]>([]);
+  // Goals State (seeded with starter goals on first visit)
+  const [goals, setGoals] = useState<CareerGoal[]>(DEFAULT_STARTER_GOALS);
 
   // Resume Builder State
   const [resumeLayout, setResumeLayout] = useState<ResumeLayout>("executive");
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
   const [resumeHeadline, setResumeHeadline] = useState(
-    "Career Professional & Lifelong Learner"
+    "Full Stack Engineer & Continuous Systems Learner"
   );
 
   // Pipeline Analysis State
@@ -175,7 +189,16 @@ export default function ThiranVazhiApp() {
           localStorage.getItem("pathforge_completed_modules")
         )
       );
-      setGoals(parseStoredGoals(localStorage.getItem("pathforge_goals")));
+      const rawGoals = localStorage.getItem("pathforge_goals");
+      if (rawGoals !== null) {
+        setGoals(parseStoredGoals(rawGoals));
+      } else {
+        setGoals(DEFAULT_STARTER_GOALS);
+        localStorage.setItem(
+          "pathforge_goals",
+          JSON.stringify(DEFAULT_STARTER_GOALS)
+        );
+      }
     } catch {
       // Ignore storage access errors in restricted environments
     }
@@ -249,6 +272,7 @@ export default function ThiranVazhiApp() {
           turnNumber: nextTurn,
           scenarioHistory: roleplayHistory,
           userResponse: decisionToSend,
+          preferredLanguage,
         }),
       });
 
@@ -303,6 +327,30 @@ export default function ThiranVazhiApp() {
       createdAt: new Date().toISOString(),
     };
     persistGoals([...goals, goal]);
+    setLiveAnnouncement(`Added milestone: ${newGoal.title}`);
+  };
+
+  const handleAddGoalFromSkill = (
+    skill: string,
+    priority: "High" | "Medium" | "Low"
+  ) => {
+    const goalTitle = `Master & verify ${skill} through applied project deliverables`;
+    const alreadyExists = goals.some(
+      (g) => g.area.toLowerCase() === skill.toLowerCase()
+    );
+    if (alreadyExists) {
+      setActiveTab("goals");
+      setLiveAnnouncement(`Viewing existing goal for ${skill}.`);
+      return;
+    }
+
+    handleAddGoal({
+      title: goalTitle,
+      type: priority === "High" ? "short" : "long",
+      deadline: "",
+      area: skill,
+    });
+    setLiveAnnouncement(`Added ${skill} goal to Goals tracker.`);
   };
 
   const handleToggleGoal = (id: string) => {
@@ -324,6 +372,7 @@ export default function ThiranVazhiApp() {
       projects?: string;
       certifications?: string;
       targetRole?: string;
+      preferredLanguage?: SupportedLanguage;
     }
   ) => {
     setIsLoading(true);
@@ -331,19 +380,24 @@ export default function ThiranVazhiApp() {
 
     if (adaptationContext) {
       setAdaptationAlert(
-        "AGENT COLLABORATION ALERT: Adaptive Intervention Protocol Active! Agent 4 (Adaptive Mentor) triggered a priority event. Agent 2 (Curriculum Architect) is injecting Remedial modules into your roadmap."
+        "Adaptive Intervention Active: Adaptive Mentor triggered a priority event and Curriculum Architect is injecting remedial modules."
       );
     } else {
       setAdaptationAlert(null);
     }
 
+    const activeName = explicitProfile?.name ?? name;
+    const activeRole = explicitProfile?.targetRole ?? targetRole;
+
     const payload = {
       action: "analyze_and_plan",
-      name: explicitProfile?.name ?? name,
+      name: activeName,
       currentSkills: explicitProfile?.skills ?? skillsList,
       projects: explicitProfile?.projects ?? projects,
       certifications: explicitProfile?.certifications ?? certifications,
-      targetRole: explicitProfile?.targetRole ?? targetRole,
+      targetRole: activeRole,
+      preferredLanguage:
+        explicitProfile?.preferredLanguage ?? preferredLanguage,
       adaptationContext,
     };
 
@@ -363,6 +417,9 @@ export default function ThiranVazhiApp() {
       setQuizAnswers({});
       setQuizSubmitted(false);
       setQuizScore(null);
+      setLiveAnnouncement(
+        `Completed skill gap audit for ${activeName} targeting ${activeRole}.`
+      );
 
       if (adaptationContext) {
         setActiveTab("roadmap");
@@ -386,21 +443,27 @@ export default function ThiranVazhiApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleLoadPreset = (presetNumber: 1 | 2 | 3) => {
+  const handleLoadPreset = (presetNumber: StudentPresetId) => {
     const preset = STUDENT_PRESETS.find((p) => p.id === presetNumber);
     if (!preset) return;
 
+    setActivePresetId(preset.id);
     setQuizAnswers({});
     setQuizSubmitted(false);
     setQuizScore(null);
     setAdaptationAlert(null);
     setParseSuccessMsg(null);
+    setRoleplayData(null);
+    setRoleplayHistory([]);
 
     setName(preset.name);
     setTargetRole(preset.targetRole);
     setSkillsList(preset.skills);
     setProjects(preset.projects);
     setCertifications(preset.certifications);
+    setResumeHeadline(
+      `${preset.targetRole} Candidate · ${preset.metaSummary}`
+    );
 
     runAgentPipeline(undefined, {
       name: preset.name,
@@ -411,7 +474,14 @@ export default function ThiranVazhiApp() {
     });
   };
 
+  const handleResetProfile = () => {
+    handleLoadPreset(DEFAULT_PRESET.id);
+    setPreferredLanguage("English");
+    setLiveAnnouncement("Reset learner profile to default candidate record.");
+  };
+
   const handleToggleSkill = (skillName: string) => {
+    setActivePresetId(null);
     setSkillsList((prev) =>
       prev.includes(skillName)
         ? prev.filter((s) => s !== skillName)
@@ -420,12 +490,14 @@ export default function ThiranVazhiApp() {
   };
 
   const handleAddSkill = (skillName: string) => {
+    setActivePresetId(null);
     if (!skillsList.includes(skillName)) {
       setSkillsList((prev) => [...prev, skillName]);
     }
   };
 
   const handleRemoveSkill = (skillToRemove: string) => {
+    setActivePresetId(null);
     setSkillsList((prev) => prev.filter((s) => s !== skillToRemove));
   };
 
@@ -458,6 +530,7 @@ export default function ThiranVazhiApp() {
       const nextCerts = parsed.certifications || certifications;
       const nextRole = parsed.suggestedTargetRole || targetRole;
 
+      setActivePresetId(null);
       setName(nextName);
       setSkillsList(nextSkills);
       setProjects(nextProjects);
@@ -500,6 +573,13 @@ export default function ThiranVazhiApp() {
       total: analysisData.diagnosticQuiz.length,
     });
     setQuizSubmitted(true);
+  };
+
+  const handleRetakeQuiz = () => {
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setQuizScore(null);
+    setLiveAnnouncement("Diagnostic quiz reset for retake.");
   };
 
   const handleAutoAdaptRoadmap = () => {
@@ -546,6 +626,7 @@ export default function ThiranVazhiApp() {
           completedModules: Object.keys(completedItems).filter(
             (k) => completedItems[k]
           ),
+          preferredLanguage,
         }),
       });
 
@@ -569,6 +650,7 @@ export default function ThiranVazhiApp() {
       setChatMessages((prev) => [...prev, mentorMsg]);
 
       if (textToSend.toLowerCase().includes("pivot to ai engineer")) {
+        setActivePresetId(null);
         setTargetRole("AI/ML Engineer");
         runAgentPipeline("Learner requested career pivot to AI/ML Engineer.", {
           targetRole: "AI/ML Engineer",
@@ -644,7 +726,7 @@ export default function ThiranVazhiApp() {
   const openGoalsCount = goals.filter((g) => !g.completed).length;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-teal-500 selection:text-white">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-teal-500 selection:text-white">
       {/* Skip Navigation Link */}
       <a
         href="#main-content"
@@ -653,62 +735,122 @@ export default function ThiranVazhiApp() {
         Skip to main content
       </a>
 
-      {/* Top Navbar */}
-      <header className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-4 lg:px-8 flex items-center justify-between shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <div className="flex items-center gap-3">
-          <div
-            aria-hidden="true"
-            className="w-9 h-9 rounded-xl bg-[#6D1A36] p-1.5 flex items-center justify-center shrink-0"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo.svg"
-              alt=""
-              className="w-6 h-6 object-contain brightness-0 invert"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-base font-heading font-bold tracking-tight text-[#6D1A36]">
-              THIRAN VAZHI
-            </h1>
-            <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#0D9488]/10 text-[#0F766E] border border-[#0D9488]/20 font-semibold">
-              UNIVERSAL ENGINE
-            </span>
-          </div>
-        </div>
+      {/* Live region for polite status updates */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {liveAnnouncement}
+      </div>
 
-        <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-full bg-[#0D9488]/[0.08] border border-[#0D9488]/20 text-[#0F766E] font-bold">
-            <span
+      {/* Top Navbar: 3-Zone Header Contract */}
+      <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-40 px-4 lg:px-8">
+        <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-8">
+          {/* Zone 1: Brand Wordmark */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div
               aria-hidden="true"
-              className="w-1.5 h-1.5 rounded-full bg-[#0D9488] animate-pulse"
-            />
-            <span>Powered by Gemini</span>
+              className="w-9 h-9 rounded-lg bg-[#6D1A36] p-1.5 flex items-center justify-center shrink-0"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.svg"
+                alt=""
+                className="w-6 h-6 object-contain brightness-0 invert"
+              />
+            </div>
+            <div>
+              <h1 className="text-base font-heading font-bold tracking-tight text-[#6D1A36] whitespace-nowrap">
+                THIRAN VAZHI
+              </h1>
+              <p className="text-xs text-slate-600 hidden sm:block whitespace-nowrap">
+                Multi-Agent Career Intelligence
+              </p>
+            </div>
+          </div>
+
+          {/* Zone 2: 4 Single-Line Workspace Links */}
+          <nav
+            aria-label="Primary sections"
+            className="hidden md:flex items-center gap-6"
+          >
+            {TOP_NAV_LINKS.map((item) => {
+              const isCurrent = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleTabSelection(item.id)}
+                  className={`min-h-[40px] px-2 text-xs font-heading font-semibold whitespace-nowrap transition-colors cursor-pointer border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488] ${
+                    isCurrent
+                      ? "border-[#6D1A36] text-[#6D1A36]"
+                      : "border-transparent text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Zone 3: 1 Primary CTA */}
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={() => runAgentPipeline()}
+              disabled={isLoading}
+              className="min-h-[40px] px-4 py-2 rounded-lg bg-[#6D1A36] hover:bg-[#521228] disabled:opacity-50 text-white text-xs font-heading font-bold whitespace-nowrap transition-colors flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488]"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw
+                    className="w-3.5 h-3.5 animate-spin"
+                    aria-hidden="true"
+                  />
+                  <span>Running Audit...</span>
+                </>
+              ) : (
+                <span>Run Audit &amp; Plan</span>
+              )}
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main Content Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row max-w-6xl w-full mx-auto p-4 lg:p-6 gap-6">
+      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-4 lg:p-6 gap-6">
         <ProfileSidebar
           name={name}
-          onNameChange={setName}
+          onNameChange={(val) => {
+            setActivePresetId(null);
+            setName(val);
+          }}
           targetRole={targetRole}
-          onTargetRoleChange={setTargetRole}
+          onTargetRoleChange={(val) => {
+            setActivePresetId(null);
+            setTargetRole(val);
+          }}
+          preferredLanguage={preferredLanguage}
+          onPreferredLanguageChange={setPreferredLanguage}
           skillsList={skillsList}
           onToggleSkill={handleToggleSkill}
           onAddSkill={handleAddSkill}
           onRemoveSkill={handleRemoveSkill}
           projects={projects}
-          onProjectsChange={setProjects}
+          onProjectsChange={(val) => {
+            setActivePresetId(null);
+            setProjects(val);
+          }}
           certifications={certifications}
-          onCertificationsChange={setCertifications}
+          onCertificationsChange={(val) => {
+            setActivePresetId(null);
+            setCertifications(val);
+          }}
           resumeText={resumeText}
           onResumeTextChange={setResumeText}
           isParsingResume={isParsingResume}
           parseSuccessMsg={parseSuccessMsg}
           onExtractSkillsFromResume={handleExtractSkillsFromResume}
+          activePresetId={activePresetId}
           onLoadPreset={handleLoadPreset}
+          onResetProfile={handleResetProfile}
           onRunPipeline={() => runAgentPipeline()}
           isLoading={isLoading}
           progressPercent={progressPercent}
@@ -725,7 +867,7 @@ export default function ThiranVazhiApp() {
           {pipelineError && (
             <div
               role="alert"
-              className="p-4 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-start gap-2.5 shadow-sm"
+              className="p-4 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-start gap-2.5"
             >
               <AlertTriangle
                 className="w-4 h-4 text-[#6D1A36] shrink-0 mt-0.5"
@@ -750,7 +892,7 @@ export default function ThiranVazhiApp() {
           <div
             role="tablist"
             aria-label="Career intelligence workspace sections"
-            className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl mb-1 overflow-x-auto"
+            className="flex items-center gap-1 p-1.5 bg-slate-100 rounded-xl border border-slate-200 overflow-x-auto"
           >
             {TABS.map((tab, index) => {
               const isSelected = activeTab === tab.id;
@@ -768,48 +910,43 @@ export default function ThiranVazhiApp() {
                   tabIndex={isSelected ? 0 : -1}
                   onClick={() => handleTabSelection(tab.id)}
                   onKeyDown={(e) => handleTabKeyDown(e, index)}
-                  className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488] ${
+                  className={`min-h-[40px] px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488] ${
                     isSelected
-                      ? "bg-white shadow-sm text-[#6D1A36] font-bold"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                      ? "bg-white border border-slate-200 text-[#6D1A36] font-bold"
+                      : "text-slate-700 hover:text-slate-900 hover:bg-white/60"
                   }`}
                 >
                   {tab.id === "readiness" && (
-                    <TrendingUp className="w-3.5 h-3.5" aria-hidden="true" />
+                    <TrendingUp className="w-4 h-4" aria-hidden="true" />
                   )}
                   {tab.id === "roadmap" && (
-                    <Layers className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Layers className="w-4 h-4" aria-hidden="true" />
                   )}
                   {tab.id === "simulation" && (
-                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Sparkles className="w-4 h-4" aria-hidden="true" />
                   )}
                   {tab.id === "quiz" && (
-                    <Award className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Award className="w-4 h-4" aria-hidden="true" />
                   )}
                   {tab.id === "mentor" && (
-                    <Bot className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Bot className="w-4 h-4" aria-hidden="true" />
                   )}
                   {tab.id === "goals" && (
-                    <Target className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Target className="w-4 h-4" aria-hidden="true" />
                   )}
                   {tab.id === "resume" && (
-                    <FileText className="w-3.5 h-3.5" aria-hidden="true" />
+                    <FileText className="w-4 h-4" aria-hidden="true" />
                   )}
                   <span>{tab.label}</span>
                   {tab.id === "roadmap" &&
                     analysisData?.roadmap.some((r) => r.isRemedial) && (
-                      <span className="px-1.5 py-0.5 bg-[#6D1A36] text-white font-mono uppercase tracking-wider font-bold text-[8px] rounded-full">
-                        REMEDIAL
+                      <span className="text-xs font-mono font-bold text-[#6D1A36]">
+                        (Remedial)
                       </span>
                     )}
-                  {tab.id === "simulation" && (
-                    <span className="px-1.5 py-0.5 bg-[#6D1A36] text-white font-mono uppercase tracking-wider font-bold text-[8px] rounded-full">
-                      NEW
-                    </span>
-                  )}
                   {tab.id === "goals" && openGoalsCount > 0 && (
-                    <span className="px-1.5 py-0.5 bg-[#0F766E] text-white font-mono uppercase tracking-wider font-bold text-[8px] rounded-full">
-                      {openGoalsCount}
+                    <span className="text-xs font-mono font-bold text-[#0F766E] tabular-nums">
+                      ({openGoalsCount})
                     </span>
                   )}
                 </button>
@@ -829,6 +966,9 @@ export default function ThiranVazhiApp() {
                 targetRole={targetRole}
                 analysisData={analysisData}
                 domainComparisonList={domainComparisonList}
+                completedCount={completedCount}
+                totalResources={totalResources}
+                onAddGoalFromSkill={handleAddGoalFromSkill}
               />
             )}
 
@@ -870,6 +1010,7 @@ export default function ThiranVazhiApp() {
                   setQuizAnswers((prev) => ({ ...prev, [qId]: optIdx }))
                 }
                 onSubmitQuiz={handleQuizSubmit}
+                onRetakeQuiz={handleRetakeQuiz}
                 onAutoAdaptRoadmap={handleAutoAdaptRoadmap}
               />
             )}
@@ -883,6 +1024,10 @@ export default function ThiranVazhiApp() {
                 isChatLoading={isChatLoading}
                 onChatInputChange={setChatInput}
                 onSendMessage={handleSendChatMessage}
+                onClearChat={() => {
+                  setChatMessages([]);
+                  setLiveAnnouncement("Cleared Mentor Agent chat transcript.");
+                }}
               />
             )}
 
@@ -931,11 +1076,11 @@ export default function ThiranVazhiApp() {
           analysisData?.missingSkills?.[0]?.skill ||
           "Core Technical Standards"
         }
+        preferredLanguage={preferredLanguage}
       />
 
-      <footer className="border-t border-stone-200 py-3 text-center text-slate-600 text-[11px] font-mono bg-white">
-        THIRAN VAZHI &bull; Universal Multi-Agent Career Engine &bull; Powered
-        by Google Gemini
+      <footer className="border-t border-slate-200 py-3.5 text-center text-slate-600 text-xs font-mono bg-white">
+        THIRAN VAZHI &middot; Universal Multi-Agent Career Engine
       </footer>
     </div>
   );

@@ -1,4 +1,10 @@
 import type { AnalysisData, DomainComparison } from "./types";
+import {
+  clampInteger,
+  clampScore,
+  sanitizeStringArray,
+  sanitizeText,
+} from "./validation";
 
 export function calculateDomainComparison(
   currentSkillsList: string[],
@@ -266,7 +272,7 @@ export function parseProfileFallback(rawText: string) {
     .map((l) => l.trim())
     .filter(Boolean);
 
-  let name = "Alex Rivera";
+  let name = "Karthik Sundaram";
   const nameLine = lines.find((l) =>
     /^(name|full name|candidate):\s*/i.test(l)
   );
@@ -556,6 +562,93 @@ export function generateRoleplayFallback(params: {
     };
   }
 
+  if (
+    role.includes("robot") ||
+    role.includes("mechanic") ||
+    role.includes("mechatron") ||
+    role.includes("embedded")
+  ) {
+    if (turn === 1) {
+      return {
+        scenarioTitle:
+          "6-DOF Articulated Manipulator Torque Spike & ISO 10218 Safety Interlock",
+        stakeholderName: "Soren Lindqvist",
+        stakeholderRole: "Director of Autonomous Systems & Plant Safety",
+        dialogue:
+          "Cell 3 on the assembly floor just triggered an emergency stop during high-speed pick-and-place cycles. Joint 4 actuator current spiked 42% above rated torque ceiling while executing a 90-degree wrist reorientation near a collaborative workspace boundary. Production throughput is paused at 140 units/hour. As Lead Robotics Engineer, what immediate diagnostic and containment protocol do you execute?",
+        turnNumber: 1,
+        competencyScore: 50,
+        evaluationFeedback:
+          "Initial challenge presented. Requires isolating kinematic singularity or collision torque faults before resetting safety interlocks.",
+        consequenceState:
+          "Assembly Cell 3 E-Stop Latched · Joint 4 Torque Fault Active",
+        suggestedResponses: [
+          "Inspect joint encoder telemetry and Jacobian condition number for wrist singularity, verify payload inertia calibration, and run reduced-speed torque validation under ISO 10218.",
+          "Clear the E-Stop fault register immediately and increase Joint 4 overcurrent trip threshold by 50% to resume full cycle speed.",
+          "Disable the collaborative force-torque safety limit temporarily until the shift ends.",
+        ],
+        isComplete: false,
+      };
+    }
+    if (turn === 2) {
+      const isGood =
+        userResp.includes("jacobian") ||
+        userResp.includes("singularity") ||
+        userResp.includes("encoder") ||
+        userResp.includes("iso") ||
+        userResp.includes("inertia") ||
+        userResp.includes("calibrate");
+      return {
+        scenarioTitle:
+          "6-DOF Articulated Manipulator Torque Spike & ISO 10218 Safety Interlock",
+        stakeholderName: "Soren Lindqvist",
+        stakeholderRole: "Director of Autonomous Systems & Plant Safety",
+        dialogue: isGood
+          ? "Solid telemetry diagnosis. Your trajectory trace confirmed the wrist passed within 1.8 degrees of a spherical wrist singularity while carrying an updated 3.4 kg end-effector, causing excessive joint velocity and PID derivative kick. How do you modify the motion planner and control loop to eliminate singularity saturation without exceeding our 2.4-second cycle budget?"
+          : "Unsafe intervention! Raising current trip limits or bypassing ISO 10218 safety limits risks mechanical gearbox failure and operator injury. Plant safety has locked the cell PLC. How do you rigorously diagnose the kinematic and control root cause?",
+        turnNumber: 2,
+        competencyScore: isGood ? 81 : 45,
+        evaluationFeedback: isGood
+          ? "Strong robotics discipline. You correctly checked Jacobian conditioning and payload parameters prior to re-energizing actuators."
+          : "Deficit identified: Never bypass torque safety interlocks or overcurrent thresholds without root-cause kinematic verification.",
+        consequenceState: isGood
+          ? "Wrist Singularity Identified · Control Re-Tuning Required"
+          : "Safety Lockout Enforced · Audit Review Active",
+        suggestedResponses: [
+          "Apply damped least-squares (DLS) inverse kinematics near wrist alignment, add trajectory jerk-limiting S-curves, and update the dynamic payload inertia matrix.",
+          "Switch the PID controller to pure proportional gain at maximum stiffness so the arm powers through the singularity.",
+          "Remove trajectory smoothing filters and run raw step commands between waypoints.",
+        ],
+        isComplete: false,
+      };
+    }
+    const isPass =
+      userResp.includes("damped") ||
+      userResp.includes("dls") ||
+      userResp.includes("jerk") ||
+      userResp.includes("inertia") ||
+      userResp.includes("s-curve");
+    return {
+      scenarioTitle:
+        "Cell 3 Kinematics Sign-Off & ISO 10218 Validation Verdict",
+      stakeholderName: "Soren Lindqvist",
+      stakeholderRole: "Director of Autonomous Systems & Plant Safety",
+      dialogue: isPass
+        ? "Exemplary control systems engineering. Damped least-squares inverse kinematics and S-curve jerk limiting smoothed Joint 4 torque by 38% while achieving a 2.25-second cycle time under full ISO 10218 compliance. Cell 3 is cleared for continuous production."
+        : "The simulation concludes. While motion was restored, aggressive gain tuning left oscillatory stress on Joint 4 harmonic drives. Review damped least-squares inverse kinematics and ISO 10218 collaborative safety limits in your roadmap.",
+      turnNumber: 3,
+      competencyScore: isPass ? 93 : 60,
+      evaluationFeedback: isPass
+        ? "Mastery verified: Sound application of damped inverse kinematics, dynamic inertia compensation, and industrial safety compliance."
+        : "Remedial recommendation: Practice Jacobian singularity avoidance and smooth trajectory planning.",
+      consequenceState: isPass
+        ? "Cell 3 Cleared for Production · 2.25s Cycle Time Verified"
+        : "Conditional Release Pending Harmonic Drive Inspection",
+      suggestedResponses: [],
+      isComplete: true,
+    };
+  }
+
   if (turn === 1) {
     return {
       scenarioTitle: "Cascading Connection Pool Starvation & Sev-1 Latency Spike",
@@ -640,50 +733,47 @@ export function formatRoleplayPayload(
   focusSkill: string,
   turnNumber: number
 ) {
+  const safeTargetRole = sanitizeText(targetRole, 160) || "Full Stack Developer";
+  const safeFocusSkill =
+    sanitizeText(focusSkill, 160) || "Core Domain Execution";
+  const safeTurn = clampInteger(raw.turnNumber ?? turnNumber, 1, 10, turnNumber);
+
   const stakeholderName =
-    typeof raw.stakeholderName === "string" && raw.stakeholderName
-      ? raw.stakeholderName
-      : "Senior Director";
+    sanitizeText(raw.stakeholderName, 120) || "Senior Director";
   const stakeholderRole =
-    typeof raw.stakeholderRole === "string" && raw.stakeholderRole
-      ? raw.stakeholderRole
-      : `${targetRole} Executive Lead`;
+    sanitizeText(raw.stakeholderRole, 160) || `${safeTargetRole} Executive Lead`;
 
   const persona =
-    typeof raw.stakeholderPersona === "string" && raw.stakeholderPersona
-      ? raw.stakeholderPersona
-      : `${stakeholderName} (${stakeholderRole})`;
+    sanitizeText(raw.stakeholderPersona, 240) ||
+    `${stakeholderName} (${stakeholderRole})`;
 
-  const promptText =
-    typeof raw.scenarioPrompt === "string" && raw.scenarioPrompt
-      ? raw.scenarioPrompt
-      : typeof raw.dialogue === "string"
-      ? raw.dialogue
-      : "Evaluate the operational scenario and propose a corrective protocol.";
+  const dialogue =
+    sanitizeText(raw.dialogue ?? raw.scenarioPrompt, 2500) ||
+    "Evaluate the operational scenario and propose a corrective protocol.";
 
-  const compScore =
-    typeof raw.currentCompetencyScore === "number"
-      ? raw.currentCompetencyScore
-      : typeof raw.competencyScore === "number"
-      ? raw.competencyScore
-      : 50;
+  const scenarioTitle =
+    sanitizeText(raw.scenarioTitle, 200) ||
+    `${safeTargetRole}: ${safeFocusSkill} Scenario`;
+
+  const compScore = clampScore(
+    raw.currentCompetencyScore ?? raw.competencyScore,
+    50
+  );
 
   const isDone = Boolean(
-    raw.isSimulationComplete ?? raw.isComplete ?? turnNumber >= 3
+    raw.isSimulationComplete ?? raw.isComplete ?? safeTurn >= 3
   );
 
   const badge =
-    typeof raw.certificationBadgeEarned === "string" &&
-    raw.certificationBadgeEarned
-      ? raw.certificationBadgeEarned
-      : isDone && compScore >= 70
-      ? `${focusSkill} Master Practitioner`
-      : null;
+    sanitizeText(raw.certificationBadgeEarned, 180) ||
+    (isDone && compScore >= 70
+      ? `${safeFocusSkill} Master Practitioner`
+      : null);
 
   const delta =
-    typeof raw.competencyDelta === "number"
-      ? raw.competencyDelta
-      : turnNumber === 2
+    typeof raw.competencyDelta === "number" && Number.isFinite(raw.competencyDelta)
+      ? Math.max(-50, Math.min(50, Math.round(raw.competencyDelta)))
+      : safeTurn === 2
       ? compScore >= 70
         ? 28
         : -10
@@ -691,19 +781,38 @@ export function formatRoleplayPayload(
       ? 14
       : -6;
 
+  const evaluationFeedback =
+    sanitizeText(raw.evaluationFeedback ?? raw.feedback, 1200) ||
+    "Evaluated action against domain telemetry.";
+
+  const consequenceState =
+    sanitizeText(raw.consequenceState, 240) || "Scenario Active";
+
+  const suggestedResponses = sanitizeStringArray(
+    raw.suggestedResponses,
+    4,
+    300
+  );
+
   return {
-    ...raw,
+    scenarioTitle,
+    stakeholderName,
+    stakeholderRole,
+    dialogue,
+    turnNumber: safeTurn,
+    competencyScore: compScore,
+    evaluationFeedback,
+    consequenceState,
+    suggestedResponses,
+    isComplete: isDone,
     stakeholderPersona: persona,
-    scenarioPrompt: promptText,
+    scenarioPrompt: dialogue,
     currentCompetencyScore: compScore,
     isSimulationComplete: isDone,
     certificationBadgeEarned: badge,
     competencyDelta: delta,
     agentLog: {
-      thought:
-        typeof raw.evaluationFeedback === "string"
-          ? raw.evaluationFeedback
-          : "Evaluated action against domain telemetry.",
+      thought: evaluationFeedback,
     },
   };
 }
@@ -1262,6 +1371,249 @@ export function generateFallbackAnalysis(profile: {
       : `Welcome ${name}! Your background in ${matchedSkills.join(
           " & "
         )} provides an excellent foundation. To break into a competitive ${targetRole}, our immediate focus is mastering dynamic 3-statement modeling and DCF sensitivity analysis. Take the 3-question diagnostic quiz below!`;
+
+    return {
+      agentLogs,
+      readinessScore,
+      matchedSkills,
+      missingSkills,
+      domainComparison,
+      roadmap,
+      diagnosticQuiz,
+      mentorAdvice,
+    };
+  }
+
+  if (
+    role.includes("robot") ||
+    role.includes("mechanic") ||
+    role.includes("mechatron") ||
+    role.includes("embedded")
+  ) {
+    const matchedSkills = currentSkillsList.filter((s) =>
+      /solidworks|cad|c\b|c\+\+|embedded|matlab|kinematic|robot|control|plc/i.test(
+        s
+      )
+    );
+    if (matchedSkills.length === 0) {
+      matchedSkills.push("SolidWorks", "Embedded C", "MATLAB");
+    }
+
+    const missingSkills = [
+      {
+        skill: "Finite Element Analysis (FEA) & Structural Tolerance",
+        priority: "High" as const,
+        reason:
+          "Critical for validating dynamic load stresses, modal frequencies, and fatigue life in high-speed robotic assemblies.",
+      },
+      {
+        skill: "ROS 2 & Real-Time Trajectory Control (DLS Kinematics)",
+        priority: "High" as const,
+        reason:
+          "Required to coordinate multi-DOF motion planning without wrist singularities or actuator torque saturation.",
+      },
+      {
+        skill: "ISO 10218 Collaborative Safety & DFM/DFA Standards",
+        priority: "Medium" as const,
+        reason:
+          "Ensures hardware designs satisfy industrial robot safety limits and CNC/injection molding manufacturability.",
+      },
+    ];
+
+    const readinessScore = isFailedQuizAdaptation ? 42 : 56;
+    const domainComparison = calculateDomainComparison(
+      currentSkillsList,
+      targetRole
+    );
+
+    const roadmap = isFailedQuizAdaptation
+      ? [
+          {
+            phase: "Phase 0 (Emergency Kinematics & Control Sprint)",
+            duration: "Week 1",
+            focusSkill: "Jacobian Singularities & PID Stability",
+            isRemedial: true,
+            resources: [
+              {
+                title:
+                  "Damped Least-Squares Inverse Kinematics Simulation Lab",
+                type: "Hands-on Project" as const,
+                description:
+                  "Eliminate wrist singularity spikes on a 6-DOF manipulator using damped pseudo-inverse solvers.",
+              },
+              {
+                title: "Discrete-Time PID & Anti-Windup Tuning Crash Course",
+                type: "Tutorial" as const,
+                description:
+                  "Diagnose derivative kick and actuator saturation in embedded motor loops.",
+              },
+            ],
+          },
+          {
+            phase: "Phase 1 (FEA Stress & Thermal Validation)",
+            duration: "Weeks 2-3",
+            focusSkill: "Structural Simulation & DFM",
+            isRemedial: true,
+            resources: [
+              {
+                title: "6-DOF End-Effector Modal & Stress Analysis Project",
+                type: "Hands-on Project" as const,
+                description:
+                  "Run linear static and modal FEA simulations with GD&T tolerance stack-ups.",
+              },
+            ],
+          },
+          {
+            phase: "Phase 2 (ISO 10218 Autonomous Cell Capstone)",
+            duration: "Weeks 4-6",
+            focusSkill: "Safety-Rated Motion Control",
+            isRemedial: false,
+            resources: [
+              {
+                title: "ROS 2 MoveIt & Force-Torque Safety Interlock Capstone",
+                type: "Hands-on Project" as const,
+                description:
+                  "Deploy an ISO 10218 compliant pick-and-place trajectory pipeline in simulation.",
+              },
+            ],
+          },
+        ]
+      : [
+          {
+            phase: "Phase 1: Dynamic Kinematics & Real-Time Control",
+            duration: "Weeks 1-2",
+            focusSkill: "ROS 2 & Motion Planning",
+            isRemedial: false,
+            resources: [
+              {
+                title: "ROS 2 Control & Forward/Inverse Kinematics Workshop",
+                type: "Course" as const,
+                description:
+                  "Implement DH parameter modeling, Jacobian velocity control, and S-curve jerk-limited trajectories.",
+              },
+              {
+                title: "STM32 Real-Time Field-Oriented Motor Control Lab",
+                type: "Hands-on Project" as const,
+                description:
+                  "Tune cascaded position-velocity-current loops under varying inertia payloads.",
+              },
+            ],
+          },
+          {
+            phase: "Phase 2: Structural FEA & Design for Manufacturing",
+            duration: "Weeks 3-4",
+            focusSkill: "FEA & GD&T Optimization",
+            isRemedial: false,
+            resources: [
+              {
+                title: "Harmonic Drive Housing Stress & Fatigue Validation",
+                type: "Hands-on Project" as const,
+                description:
+                  "Optimize topology and CNC machining tolerances while maintaining safety factors above 2.5.",
+              },
+            ],
+          },
+          {
+            phase: "Phase 3: Industrial Safety Certification Capstone",
+            duration: "Weeks 5-6",
+            focusSkill: "ISO 10218 Compliance",
+            isRemedial: false,
+            resources: [
+              {
+                title: "Collaborative Workcell Safety & Risk Assessment Dossier",
+                type: "Hands-on Project" as const,
+                description:
+                  "Deliver a complete FMEA, safe torque limiting validation, and hardware-in-the-loop sign-off.",
+              },
+            ],
+          },
+        ];
+
+    const diagnosticQuiz = [
+      {
+        id: 1,
+        skill: "Robotics Kinematics",
+        question:
+          "Why does a 6-DOF articulated manipulator experience extreme joint velocities near a kinematic wrist singularity?",
+        options: [
+          "The Jacobian matrix loses full rank, making its determinant approach zero and amplifying inverse velocity commands",
+          "The encoder resolution automatically halves whenever joint angles cross zero degrees",
+          "Motor winding resistance drops exponentially at low angular speeds",
+          "Gravity compensation terms invert sign inside the Denavit-Hartenberg table",
+        ],
+        correctIndex: 0,
+        explanation:
+          "At a kinematic singularity, the manipulator Jacobian becomes rank-deficient (det(J) -> 0), causing standard inverse kinematics to command unbounded joint velocities for small Cartesian motions.",
+      },
+      {
+        id: 2,
+        skill: "Control Systems",
+        question:
+          "Which technique prevents sudden actuator current spikes when a step setpoint change is applied to a PID motor controller?",
+        options: [
+          "Eliminating the proportional gain completely",
+          "Applying derivative-on-measurement and S-curve jerk-limited trajectory profiling",
+          "Doubling the integral gain during startup transients",
+          "Disabling encoder velocity feedback filters",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Computing the derivative term on the measured output instead of error avoids derivative kick on step changes, and S-curve jerk limiting bounds acceleration rates.",
+      },
+      {
+        id: 3,
+        skill: "Safety & Structural FEA",
+        question:
+          "Under ISO 10218 collaborative robot safety requirements, what must occur when an unexpected collision force exceeds the rated biomechanical threshold?",
+        options: [
+          "Increase motor current by 25% to complete the assembly step before halting",
+          "Trigger a safety-rated monitored stop (Category 0 or Category 1) and log the fault before manual reset",
+          "Automatically recalibrate the payload mass and continue cycling",
+          "Ignore the transient if it lasts less than 500 milliseconds",
+        ],
+        correctIndex: 1,
+        explanation:
+          "ISO 10218 requires an immediate safety-rated stop when force/torque limits are violated, requiring fault verification before resuming operation.",
+      },
+    ];
+
+    const agentLogs = [
+      {
+        agentName: "Skill Auditor Agent" as const,
+        status: "completed" as const,
+        thought: `Audited candidate ${name}'s hardware and embedded competencies (${matchedSkills.join(
+          ", "
+        )}). Identified priority gaps for ${targetRole}: ${missingSkills
+          .map((m) => m.skill)
+          .join(", ")}. Computed readiness score of ${readinessScore}%.`,
+      },
+      {
+        agentName: "Curriculum Architect Agent" as const,
+        status: "completed" as const,
+        thought: isFailedQuizAdaptation
+          ? "ALERT RECEIVED: Diagnostic assessment triggered remedial adaptation. Inserted Phase 0 Jacobian Singularity & PID Stability lab prior to FEA modules."
+          : "Constructed 3-phase mechatronics roadmap bridging CAD/Embedded C into ROS 2 motion planning, FEA tolerance validation, and ISO 10218 safety.",
+      },
+      {
+        agentName: "Assessment Examiner Agent" as const,
+        status: "completed" as const,
+        thought:
+          "Generated 3 diagnostic robotics challenges covering Jacobian singularities, derivative-on-measurement PID tuning, and ISO 10218 safety interlocks.",
+      },
+      {
+        agentName: "Adaptive Mentor Agent" as const,
+        status: "completed" as const,
+        thought: isFailedQuizAdaptation
+          ? "COLLABORATION ALERT: Adaptive Intervention Protocol active. Diagnosed conceptual gap in kinematic singularities and closed-loop stability."
+          : `Monitoring learning telemetry. Profile calibrated for ${name} targeting ${targetRole}.`,
+      },
+    ];
+
+    const mentorAdvice = isFailedQuizAdaptation
+      ? "Adaptive Alert Triggered: Kinematic singularities and PID derivative spikes are classic robotics hurdles. I coordinated with the Curriculum Architect Agent to insert a Phase 0 Damped Least-Squares & Control Stability sprint before moving to hardware workcell deployment."
+      : `Welcome ${name}! Your foundation in ${matchedSkills.join(
+          " & "
+        )} maps well to ${targetRole}. Prioritize FEA structural validation, singularity-safe ROS 2 motion planning, and ISO 10218 safety sign-off. Complete the 3-question diagnostic below!`;
 
     return {
       agentLogs,
